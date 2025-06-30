@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>pinklilybutnotinpy</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #ff94b9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      background-color: #ff94b9;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="lilyCanvas" width="1000" height="1000"></canvas>
+
+  <script>
+    const canvas = document.getElementById("lilyCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const PETALS = 6;
+    const BIG_RADIUS = 300;
+    const SMALL_RADIUS = 200;
+    const PISTIL_RADIUS = 45;
+    const STAMEN_LENGTH = 190;
+    const CENTER_X = canvas.width / 2;
+    const CENTER_Y = canvas.height / 2;
+
+    const BLOOM_DURATION = 40;
+    const PISTIL_BLOOM_DURATION = 30;
+    const STAMEN_BLOOM_DURATION = 20;
+    const FRAME_DELAY = 20;
+
+    let currentIndex = 0;
+    let bloomFrames = 0;
+    let pistilFrames = 0;
+    let pistilScale = 0;
+    let pistilRevealed = false;
+    let stamenIndex = 0;
+    let stamenFrames = 0;
+    let stamensRevealed = false;
+
+    const bloomSequence = [];
+
+    for (let i = 0; i < PETALS; i++) {
+      bloomSequence.push({
+        angle: 60 + (360 / PETALS) * i,
+        radius: BIG_RADIUS,
+        color: randomPink(i)
+      });
+    }
+
+    for (let i = 0; i < PETALS; i++) {
+      bloomSequence.push({
+        angle: 90 + (360 / PETALS) * i,
+        radius: SMALL_RADIUS,
+        color: "#ffa9b7"
+      });
+    }
+
+    function randomPink(seedOffset = 0) {
+      const r = 240 + Math.sin(seedOffset) * 15;
+      const g = 180 + Math.cos(seedOffset / 2) * 20;
+      const b = 200 + Math.sin(seedOffset / 3) * 20;
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function drawPetal(radius, angle, color, scale = 1) {
+      ctx.save();
+      ctx.translate(CENTER_X, CENTER_Y);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.scale(scale, scale);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.fillStyle = color;
+      ctx.shadowColor = "#ffffffaa";
+      ctx.shadowBlur = 18;
+      ctx.bezierCurveTo(
+        -radius * 0.6,
+        -radius * 1.05,
+        radius * 0.6,
+        -radius * 1.05,
+        0,
+        0
+      );
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPistil(scale = 1) {
+      ctx.save();
+      ctx.translate(CENTER_X, CENTER_Y);
+      ctx.scale(scale, scale);
+      ctx.beginPath();
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = "#fff4c2";
+      ctx.fillStyle = "#fdd835";
+      ctx.arc(0, 0, PISTIL_RADIUS, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawStamen(i, scale = 1) {
+      const angle = (360 / PETALS) * i;
+      const rad = angle * Math.PI / 180;
+      const x = CENTER_X + STAMEN_LENGTH * scale * Math.cos(rad);
+      const y = CENTER_Y + STAMEN_LENGTH * scale * Math.sin(rad);
+
+      ctx.beginPath();
+      ctx.strokeStyle = "gold";
+      ctx.lineWidth = 2;
+      ctx.moveTo(CENTER_X, CENTER_Y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.fillStyle = "orange";
+      ctx.arc(x, y, 9 * scale, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Fully bloomed petals
+      for (let i = 0; i < currentIndex; i++) {
+        const p = bloomSequence[i];
+        drawPetal(p.radius, p.angle, p.color, 1);
+      }
+
+      // Animate current petal
+      if (currentIndex < bloomSequence.length) {
+        const p = bloomSequence[currentIndex];
+        const scale = bloomFrames / BLOOM_DURATION;
+        drawPetal(p.radius, p.angle, p.color, scale);
+        bloomFrames++;
+        if (bloomFrames >= BLOOM_DURATION) {
+          bloomFrames = 0;
+          currentIndex++;
+        }
+
+      // Animate pistil
+      } else if (!pistilRevealed) {
+        pistilScale = pistilFrames / PISTIL_BLOOM_DURATION;
+        drawPistil(pistilScale);
+        pistilFrames++;
+        if (pistilFrames >= PISTIL_BLOOM_DURATION) {
+          pistilScale = 1;
+          pistilRevealed = true;
+        }
+
+      // Animate stamens
+      } else if (!stamensRevealed) {
+        drawPistil(1);
+        for (let i = 0; i < stamenIndex; i++) {
+          drawStamen(i, 1);
+        }
+
+        if (stamenIndex < PETALS) {
+          const scale = stamenFrames / STAMEN_BLOOM_DURATION;
+          drawStamen(stamenIndex, scale);
+          stamenFrames++;
+          if (stamenFrames >= STAMEN_BLOOM_DURATION) {
+            stamenFrames = 0;
+            stamenIndex++;
+          }
+        }
+
+        if (stamenIndex >= PETALS) {
+          stamensRevealed = true;
+        }
+
+      // Final state: everything visible
+      } else {
+        drawPistil(1);
+        for (let i = 0; i < PETALS; i++) {
+          drawStamen(i, 1);
+        }
+      }
+
+      setTimeout(() => requestAnimationFrame(drawFrame), FRAME_DELAY);
+    }
+
+    drawFrame();
+
+    
+    canvas.addEventListener("click", (e) => {
+      if (!stamensRevealed) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const dx = x - CENTER_X;
+      const dy = y - CENTER_Y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= BIG_RADIUS) {
+        window.location.href = "povtposnamagbloom.html";
+      }
+    });
+  </script>
+</body>
+</html>
